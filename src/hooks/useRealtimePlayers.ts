@@ -18,9 +18,9 @@ interface PostgresChanges {
 const useRealtimePlayers = () => {
   const [players, setPlayers] = useState<Player[]>([]);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const isSubscribed = useRef(false);
 
   useEffect(() => {
-    // Fetch initial players
     const fetchPlayers = async () => {
       const { data, error } = await supabase
         .from('players')
@@ -33,53 +33,58 @@ const useRealtimePlayers = () => {
       }
     };
 
-    fetchPlayers();
-
-    // Set up real-time subscription only if we don't have a channel yet
-    if (!channelRef.current) {
-      channelRef.current = supabase
-        .channel('players_realtime')
+    if (!isSubscribed.current) {
+      isSubscribed.current = true;
+      
+      channelRef.current = supabase.channel('players_realtime');
+      
+      channelRef.current
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'players' },
           (payload: RealtimePostgresChangesPayload<PostgresChanges>) => {
-            console.log('INSERT', payload);
-            setPlayers((currentPlayers) => [...currentPlayers, payload.new as Player]);
+            if (payload.new) {
+              setPlayers((current) => [...current, payload.new as Player]);
+            }
           }
         )
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'players' },
           (payload: RealtimePostgresChangesPayload<PostgresChanges>) => {
-            console.log('UPDATE', payload);
-            setPlayers((currentPlayers) =>
-              currentPlayers.map((player) =>
-                player.id === (payload.new as Player).id ? (payload.new as Player) : player
-              )
-            );
+            if (payload.new) {
+              setPlayers((current) =>
+                current.map((player) =>
+                  player.id === (payload.new as Player).id ? (payload.new as Player) : player
+                )
+              );
+            }
           }
         )
         .on(
           'postgres_changes',
           { event: 'DELETE', schema: 'public', table: 'players' },
           (payload: RealtimePostgresChangesPayload<PostgresChanges>) => {
-            console.log('DELETE', payload);
-            setPlayers((currentPlayers) =>
-              currentPlayers.filter((player) => player.id !== (payload.old as Player).id)
-            );
+            if (payload.old) {
+              setPlayers((current) =>
+                current.filter((player) => player.id !== (payload.old as Player).id)
+              );
+            }
           }
-        )
-        .subscribe();
+        );
+
+      channelRef.current.subscribe();
+      fetchPlayers();
     }
 
-    // Cleanup subscription
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
+        isSubscribed.current = false;
       }
     };
-  }, []); 
+  }, []);
 
   return players;
 };
