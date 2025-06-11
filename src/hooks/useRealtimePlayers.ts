@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../services/supabase';
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 
 interface Player {
   id: string;
@@ -7,6 +8,11 @@ interface Player {
   y: number;
   color: string;
   name: string;
+}
+
+interface PostgresChanges {
+  new: Player;
+  old: Player;
 }
 
 const useRealtimePlayers = () => {
@@ -34,7 +40,7 @@ const useRealtimePlayers = () => {
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'players' },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<PostgresChanges>) => {
           console.log('INSERT', payload);
           setPlayers((currentPlayers) => [...currentPlayers, payload.new as Player]);
         }
@@ -42,11 +48,11 @@ const useRealtimePlayers = () => {
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'players' },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<PostgresChanges>) => {
           console.log('UPDATE', payload);
           setPlayers((currentPlayers) =>
             currentPlayers.map((player) =>
-              player.id === payload.new.id ? (payload.new as Player) : player
+              player.id === (payload.new as Player).id ? (payload.new as Player) : player
             )
           );
         }
@@ -54,10 +60,10 @@ const useRealtimePlayers = () => {
       .on(
         'postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'players' },
-        (payload) => {
+        (payload: RealtimePostgresChangesPayload<PostgresChanges>) => {
           console.log('DELETE', payload);
           setPlayers((currentPlayers) =>
-            currentPlayers.filter((player) => player.id !== payload.old.id)
+            currentPlayers.filter((player) => player.id !== (payload.old as Player).id)
           );
         }
       )
@@ -71,4 +77,4 @@ const useRealtimePlayers = () => {
   return players;
 };
 
-export default useRealtimePlayers; 
+export default useRealtimePlayers;

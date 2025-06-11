@@ -78,7 +78,8 @@ const usePlayerMovement = ({
 
     // Add support for continuous movement while key is held down
     let isMoving = false;
-    let moveInterval: NodeJS.Timeout | null = null;
+
+    let moveInterval: ReturnType<typeof setInterval> | null = null;
 
     const startMoving = (event: KeyboardEvent) => {
       if (!isMoving) {
